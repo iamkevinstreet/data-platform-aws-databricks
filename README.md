@@ -1,0 +1,81 @@
+# Data platform: AWS with Databricks
+
+[![ci](https://github.com/iamkevinstreet/data-platform-aws-databricks/actions/workflows/ci.yml/badge.svg)](https://github.com/iamkevinstreet/data-platform-aws-databricks/actions/workflows/ci.yml)
+[![codeql](https://github.com/iamkevinstreet/data-platform-aws-databricks/actions/workflows/codeql.yml/badge.svg)](https://github.com/iamkevinstreet/data-platform-aws-databricks/actions/workflows/codeql.yml)
+
+Where projects run on AWS with Databricks. Every project follows the same blueprint, and this is
+its bottom layer: the place its data lands and its warehouse runs. This repository provisions it,
+in Terraform: a private S3 lake bucket, the role a project's GitHub workflows assume to write to
+it, with no stored keys, and the Unity Catalog setup a project's loads and models run in. It is
+the first of six platform repositories, one for each pairing of AWS, Azure or Google Cloud with
+Databricks or Snowflake.
+
+## Status
+
+| Part | State |
+| --- | --- |
+| The aws root: the lake bucket and the CI role | Applied on Nov 9, 2026, from data-platform, where it was built; moved here unchanged but for the role's trust, which now lists the deploying repositories |
+| The databricks root: catalog, schemas, volume, groups, grants | Written and validated, not yet applied; projects build in the Free Edition's own `workspace` catalog meanwhile |
+| Deploying here | [ai-operations](https://github.com/iamkevinstreet/ai-operations): every day it loads and builds on Databricks, and copies its warehouse and docs to the lake |
+
+The Databricks Free Edition runs in Databricks' own hosting, not in this AWS account. A Databricks
+workspace inside this account, reading the lake through Unity Catalog, needs a Databricks trial;
+that is the next step for this pairing.
+
+## What it provides
+
+| Piece | What it is | Where |
+| --- | --- | --- |
+| Lake bucket | Private, encrypted, versioned, TLS only; replaced versions expire after 30 days | [infra/aws/main.tf](infra/aws/main.tf) |
+| CI role, `data-platform-ci` | Assumed through GitHub's OIDC token by the main branch of each listed repository, for an hour at most; lists, reads and adds objects, never deletes | [infra/aws/main.tf](infra/aws/main.tf) |
+| Deployers | The repositories the role trusts, each by owner/name and numeric id | [infra/aws/variables.tf](infra/aws/variables.tf) |
+| Unity Catalog setup | A catalog, one schema per layer, a landing volume, and groups that load, build and read | [infra/databricks/main.tf](infra/databricks/main.tf) |
+| Bootstrap | Builds or changes the aws root from AWS CloudShell, with its state in a private bucket | [infra/bootstrap.sh](infra/bootstrap.sh) |
+
+## How a project deploys here
+
+1. Add its repository to `deployers` in [infra/aws/variables.tf](infra/aws/variables.tf), by
+   owner/name and numeric id (`gh api repos/OWNER/NAME --jq .id`), and apply the aws root again.
+2. In that repository's Actions settings, set the secrets `AWS_ROLE_ARN` and `LAKE_BUCKET` (the
+   bootstrap prints both) and the variable `AWS_REGION`; for Databricks, the secrets
+   `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH` and `DATABRICKS_TOKEN` and the variable
+   `DATABRICKS_CATALOG`.
+3. Write under the project's own prefix in the lake, `s3://LAKE_BUCKET/PROJECT/`.
+
+Anything that names the account is a secret, not a variable, because a public repository's logs
+are public.
+
+## Set up or change it
+
+From AWS CloudShell, as [infra/README.md](infra/README.md) describes: clone this repository and run
+the bootstrap with the lake bucket's name. Terraform shows its plan and waits for a yes; read the
+plan before answering, as it should change only what was edited.
+
+## Costs
+
+The bucket holds a few megabytes, which cost cents a month; the role and GitHub's OIDC provider
+cost nothing, and so does the Databricks Free Edition. Nothing here runs between deployments.
+
+## Layout
+
+```text
+infra/aws/          the lake bucket, GitHub's OIDC provider and the CI role
+infra/databricks/   the Unity Catalog objects and their grants
+infra/bootstrap.sh  the first apply, and every later one, from AWS CloudShell
+tests/              the Terraform read without a cloud account
+```
+
+## Testing
+
+```bash
+make install   # the checks' environment, from uv.lock
+make check     # lint, format, strict types and the code standard
+make test      # 5 tests: the Terraform parsed and its rules checked
+```
+
+CI also runs `terraform fmt` and `terraform validate` on both roots.
+
+## Changelog and license
+
+[CHANGELOG.md](CHANGELOG.md) lists every change, and [SECURITY.md](SECURITY.md) how to report a
+vulnerability. Licensed under the [Apache License 2.0](LICENSE).
