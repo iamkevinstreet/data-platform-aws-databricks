@@ -7,10 +7,12 @@
 # Created on:        2026-11-09
 # Last modified on:  2026-11-09
 #
-# Runs on every push to main and every pull request: the secrets scan,
-# lint, types, the code standard, the tests and the audit; then
-# Terraform's format and each root's validation against its providers.
-# Nothing here signs in to a cloud: applying is the bootstrap's job.
+# Runs on every push to main and every pull request, and for the
+# dependency-updates workflow on the commit it is about to land: the
+# secrets scan, lint, types, the code standard, the tests and the audit;
+# then Terraform's format and each root's validation against its
+# providers. Nothing here signs in to a cloud: applying is the
+# bootstrap's job.
 
 name: ci
 
@@ -20,6 +22,13 @@ on:
   pull_request:
   # By hand, on any branch: before a repository has a main, a branch has no pull request to run on.
   workflow_dispatch:
+  # From the dependency-updates workflow, on the exact commit it is about to land.
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to check; blank checks the commit that started the run.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -38,6 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           fetch-depth: 0  # the secrets scan and the header dates read all of history
           persist-credentials: false
 
@@ -76,6 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1

@@ -30,5 +30,5 @@ Databricks themselves, and findings that need a compromised developer machine.
 | A public bucket | Every public-access switch on, objects owned by the bucket, TLS required, versioning on; a test checks the Terraform |
 | Terraform state anyone can read | The state bucket is private, versioned and encrypted, and is made by the bootstrap from CloudShell, signed in as the account's owner; no state is committed |
 | A committed secret | gitleaks before every commit and over the whole history in CI; anything that names the account lives in GitHub secrets only |
-| A vulnerable dependency | A lockfile with hashes, `pip-audit` in CI, Dependabot every week for the Actions, the Python checks and the Terraform providers |
+| A vulnerable dependency | A lockfile with hashes, `pip-audit` in CI, Dependabot every week for the Actions, the Python checks and the Terraform providers, each update landed only after the whole of CI passes on it |
 | A tampered Action or tool | Actions pinned to commit SHAs; the gitleaks download checked against its published SHA-256; the Terraform zip, when the bootstrap needs it, checked against HashiCorp's published SHA-256 |

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Dependency updates land by themselves.** Dependabot groups each week's updates into one pull
+  request per kind (Actions, the Python checks, the Terraform providers), and the
+  `dependency-updates` workflow lands them every weekday: it applies the oldest open one to `main`
+  as an ordinary commit, refreshes the dates in the headers it changes, runs the whole of CI on that
+  commit, and moves `main` to it only when every check passes. One whose checks fail is labelled
+  "needs a person" and waits; one that changes a workflow waits for the `DEPENDENCY_UPDATES_TOKEN`
+  secret. CI can now be called for a given commit, which is how the workflow checks one.
+
 ## v0.1.0, Nov 9, 2026
 
 - **Split from data-platform**, now [ai-operations](https://github.com/iamkevinstreet/ai-operations),
