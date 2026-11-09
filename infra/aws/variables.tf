@@ -25,16 +25,14 @@ variable "deployers" {
   }))
   default = [
     { repository = "iamkevinstreet/ai-operations", id = 1450000844 },
-    # The same repository under its name before the Nov 9, 2026 rename. Its id
-    # is the same, so no other repository can match it; drop it once renamed.
-    { repository = "iamkevinstreet/data-platform", id = 1450000844 },
+    { repository = "iamkevinstreet/eeoc-charge-intake", id = 1418185196 },
   ]
 
   validation {
     condition = length(var.deployers) > 0 && alltrue([
       for d in var.deployers : length(split("/", d.repository)) == 2
-    ])
-    error_message = "Name at least one deployer, each as owner/name."
+    ]) && length(distinct([for d in var.deployers : d.id])) == length(var.deployers)
+    error_message = "Name at least one deployer, each as owner/name, each repository once."
   }
 }
 

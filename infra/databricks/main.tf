@@ -10,16 +10,20 @@
 
 locals {
   raw_schemas = {
-    raw_ai_ops = "AI operations: the apps' committed results, loaded by dlt at pinned commits."
-    landing    = "Files dropped for loading, such as review exports."
+    raw_ai_ops     = "AI operations: the apps' committed results, loaded by dlt at pinned commits."
+    raw_reviews    = "EEOC charge intake: the review exports, each checked against contract v1."
+    raw_eeoc_stats = "EEOC charge intake: the EEOC's Table E1a, charge receipts by basis."
+    landing        = "Files dropped for loading, such as review exports."
   }
   model_schemas = {
-    staging      = "dbt staging views: one per raw table."
-    intermediate = "dbt views that line the apps' formats up."
-    reference    = "dbt seeds: reference tables kept in the repository."
+    staging      = "dbt staging views: one per raw table, named for its source."
+    intermediate = "dbt views that line each project's sources up to one grain."
+    reference    = "dbt seeds: reference tables kept in each project's repository."
   }
   mart_schemas = {
-    ai_ops = "The AI operations mart: runs, cases, calls, spans and costs."
+    ai_ops   = "The AI operations mart: runs, cases, calls, spans and costs."
+    charges  = "The EEOC charges mart: reviewed charges, field reviews, bridges and dimensions."
+    national = "The EEOC's national statistics, the charges' context."
   }
   schemas = merge(local.raw_schemas, local.model_schemas, local.mart_schemas)
   groups  = ["data-loaders", "data-builders", "data-readers"]

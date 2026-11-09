@@ -201,3 +201,5 @@ def test_every_deployer_names_its_repository_and_id() -> None:
     assert listed and all(
         d["repository"].count("/") == 1 and isinstance(d["id"], int) for d in listed
     )
+    # log.debug("Checks each repository is listed once")
+    assert len({d["id"] for d in listed}) == len(listed)
