@@ -16,9 +16,9 @@
 #
 #   bash infra/databricks.sh
 #
-# Make the groups in the workspace's settings first, as infra/README.md
-# says. Arguments are passed to terraform apply, such as
-# -var create_catalog=false for a catalog made in the SQL editor.
+# Make the groups and the catalog in the workspace first, as
+# infra/README.md says. Arguments are passed to terraform apply, such
+# as -var create_catalog=true where the API can make the catalog.
 
 set -euo pipefail
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.1, Nov 10, 2026
+
+- **The catalog is made in the workspace's UI.** On the first apply, the Free Edition's API refused
+  to make `kds` ("Metastore storage root URL does not exist. Default Storage is enabled"), while its
+  UI makes a catalog on the default storage. So the catalog was made there, and `create_catalog` now
+  defaults to false, so later applies leave it be; infra/README.md says how, before the first apply.
+- **First applied, Nov 10:** 30 resources, the 13 schemas, the landing volume and every grant, with
+  a token scoped to `unity-catalog` and `sql`. Both projects' daily runs then loaded and built in
+  `kds`: eeoc-charge-intake's 127 seeds, models and tests, the charging party masked, and
+  ai-operations' 128.
+
 ## v0.3.0, Nov 10, 2026
 
 - **Grants go to account groups, made in the workspace's settings.** The databricks root made its

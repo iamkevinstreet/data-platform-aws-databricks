@@ -15,7 +15,7 @@ Databricks or Snowflake.
 | Part | State |
 | --- | --- |
 | The aws root: the lake bucket and the CI role | Applied on Nov 9, 2026, from data-platform, where it was built; moved here unchanged but for the role's trust, which lists the deploying repositories. v0.2.0 added eeoc-charge-intake to them, applied on Nov 10 |
-| The databricks root: catalog, schemas, volume, grants | Written and validated, not yet applied; projects build in the Free Edition's own `workspace` catalog meanwhile. v0.3.0 grants to account groups made in the workspace's settings, since Unity Catalog grants nothing to the workspace-local groups Terraform would make, and adds a script that applies it from CloudShell |
+| The databricks root: catalog, schemas, volume, grants | Applied on Nov 10, 2026: the `kds` catalog, made in the workspace's UI since the Free Edition's API cannot make one on its default storage, then 13 schemas, the landing volume and each account group's grants. Both projects have loaded and built there since, with the charging party's name masked |
 | Deploying here | [ai-operations](https://github.com/iamkevinstreet/ai-operations) and [eeoc-charge-intake](https://github.com/iamkevinstreet/eeoc-charge-intake): every day each loads and builds on Databricks, and copies its warehouse and docs to the lake under its own prefix |
 
 The Databricks Free Edition runs in Databricks' own hosting, not in this AWS account. A Databricks

@@ -13,9 +13,9 @@ variable "catalog" {
 }
 
 variable "create_catalog" {
-  description = "Whether to create the catalog; false to use one that exists, such as workspace."
+  description = "Whether Terraform makes the catalog; on the Free Edition the UI must."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "groups" {

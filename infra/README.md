@@ -2,9 +2,9 @@
 
 Two Terraform roots, each with its own state, so the cloud account and the workspace can be built
 and torn down apart. CI checks the format and validates both against their providers' schemas on
-every push. The aws root was first applied on Nov 9, 2026, from data-platform; the databricks root
-has not been applied yet. Each is applied from AWS CloudShell by a script, which shows Terraform's
-plan and waits for a yes.
+every push. The aws root was first applied on Nov 9, 2026, from data-platform, and the databricks
+root on Nov 10. Each is applied from AWS CloudShell by a script, which shows Terraform's plan and
+waits for a yes.
 
 ## aws
 
@@ -86,8 +86,15 @@ what anyone reads still comes from Unity Catalog's grants, and this group has no
 Entitlements add up across a member's groups, and on the Free Edition every job runs with one
 person's token, so these bind whoever is added to a group later, not today's runs.
 
+**The catalog is made in the workspace too.** The Free Edition's metastore keeps catalogs in
+Databricks' default storage, and its API will not make one there ("Metastore storage root URL does
+not exist. Default Storage is enabled"), while its UI will. So, once: open Catalog, then the plus,
+then Create a catalog, and make `kds`, Standard, on the default storage, with no grants; this root
+grants on it. `create_catalog` is false for that reason; set it to true only on a workspace whose
+metastore has a storage root.
+
 Then, from AWS CloudShell, with a workspace token (Settings, then Developer, then Access tokens; a
-day's lifetime is enough):
+day's lifetime is enough; scopes `unity-catalog` and `sql` only):
 
 ```bash
 cd data-platform-aws-databricks
@@ -100,10 +107,6 @@ environment and are never printed or written to a file, installs Terraform if Cl
 keeps the root's state in the bootstrap's state bucket under `databricks/`, and applies the root,
 showing the plan and waiting for a yes. Then set each deploying repository's `DATABRICKS_CATALOG`
 variable to `kds`; its next run loads and builds there.
-
-If the apply cannot make the catalog (in February 2026 some Free Edition users could make one only
-from SQL), make it in the SQL editor with `CREATE CATALOG kds` and run the script again with
-`-var create_catalog=false`.
 
 A deploying repository reads three secrets: `DATABRICKS_HOST` (the SQL warehouse's server
 hostname, without `https://`), `DATABRICKS_HTTP_PATH` (its HTTP path, also this root's output
@@ -122,6 +125,8 @@ hostname, without `https://`), `DATABRICKS_HTTP_PATH` (its HTTP path, also this 
   makes, so the grants bind every other principal but not the jobs. A service principal for each
   job would make them bite; forum reports say the Free Edition cannot give a service principal an
   OAuth secret, which needs the account console. Not yet tried.
-- **Still to learn on the first apply:** whether the token may make a catalog, whether managed
-  volumes are open to it, and whether it can read this account's bucket through an external
+- **The first apply, Nov 10:** the API refused to make the catalog on the Free Edition's default
+  storage, so it was made in the UI, as above; then the 13 schemas, the managed volume and all 16
+  grants applied in seconds with a token scoped to `unity-catalog` and `sql`.
+- **Not yet known:** whether the workspace can read this account's bucket through an external
   location.
