@@ -76,11 +76,13 @@ empty. The dialog, Add group to account and workspace, also sets each group's en
 | `data-loaders` | off | on | off | off |
 | `data-builders` | off | on | off | off |
 | `data-readers` | off | on | off | off |
-| `personal-data-readers` | off | off | off | off |
+| `personal-data-readers` | on | off | off | off |
 
 The loads, the builds and anyone reading the marts reach Databricks only through the SQL warehouse,
 so SQL access is all a working group needs: no notebooks or clusters, no consumer view, no admin.
-`personal-data-readers` exists only for the mask to ask who is in it, so it grants nothing.
+`personal-data-readers` exists only for the mask to ask who is in it. The dialog will not add a
+group with no entitlement, so it gets the narrowest, consumer access, which opens no data by itself:
+what anyone reads still comes from Unity Catalog's grants, and this group has none.
 Entitlements add up across a member's groups, and on the Free Edition every job runs with one
 person's token, so these bind whoever is added to a group later, not today's runs.
 
