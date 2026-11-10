@@ -66,9 +66,23 @@ root's own; the catalog's are one per group, which leaves any other grant on it 
 workspace's token is workspace-local, and Unity Catalog grants nothing to a workspace-local group;
 making an account group takes the account console, which the Free Edition does not have. A group a
 workspace admin adds in the workspace's settings is an account group. So, once, before the first
-apply: in the workspace, open Settings, then Identity and access, then Groups, and add
-`data-loaders`, `data-builders` and `data-readers`, plus `personal-data-readers`, the one group
-eeoc-charge-intake's column mask lets see a charging party's name. All four stay empty.
+apply: in the workspace, open Settings, then Identity and access, then Manage next to Groups, then
+Add group, and add `data-loaders`, `data-builders` and `data-readers`, plus `personal-data-readers`,
+the one group eeoc-charge-intake's column mask lets see a charging party's name. All four stay
+empty. The dialog, Add group to account and workspace, also sets each group's entitlements:
+
+| Group | Consumer access | Databricks SQL access | Workspace access | Admin access |
+| --- | --- | --- | --- | --- |
+| `data-loaders` | off | on | off | off |
+| `data-builders` | off | on | off | off |
+| `data-readers` | off | on | off | off |
+| `personal-data-readers` | off | off | off | off |
+
+The loads, the builds and anyone reading the marts reach Databricks only through the SQL warehouse,
+so SQL access is all a working group needs: no notebooks or clusters, no consumer view, no admin.
+`personal-data-readers` exists only for the mask to ask who is in it, so it grants nothing.
+Entitlements add up across a member's groups, and on the Free Edition every job runs with one
+person's token, so these bind whoever is added to a group later, not today's runs.
 
 Then, from AWS CloudShell, with a workspace token (Settings, then Developer, then Access tokens; a
 day's lifetime is enough):
