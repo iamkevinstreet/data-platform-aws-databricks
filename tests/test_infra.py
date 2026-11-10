@@ -6,13 +6,14 @@
 """
 Author:            Kevin Street
 Created on:        2026-11-09
-Last modified on:  2026-11-09
+Last modified on:  2026-11-10
 
 Tests the Terraform without a cloud account: every file parses, every
-provider is pinned to a range, the bucket can never be public, and the
-CI role trusts only the listed repositories' main branch and can never
-delete. CI's terraform validate checks the rest against the providers'
-own schemas.
+provider is pinned to a range, the bucket can never be public, the CI
+role trusts only the listed repositories' main branch and can never
+delete, and each Unity Catalog group reaches only what its job needs.
+CI's terraform validate checks the rest against the providers' own
+schemas.
 """
 
 ########################################################################
@@ -203,3 +204,70 @@ def test_every_deployer_names_its_repository_and_id() -> None:
     )
     # log.debug("Checks each repository is listed once")
     assert len({d["id"] for d in listed}) == len(listed)
+
+
+# log.debug("Defines one root's locals, merged")
+def _locals(name: str | None = None) -> dict[str, Any]:
+    """Returns every local value of the root, by name.
+
+    Args:
+        name: The root's folder under infra/. Required.
+
+    Returns:
+        Each local's name and its parsed value.
+    """
+    # log.debug("Takes the root, which the caller must give")
+    name = required(name=name)
+    # log.debug("Merges the root's locals blocks")
+    return {key: value for block in _root(name)["locals"] for key, value in block.items()}
+
+
+# log.debug("Defines the test that the groups are named, not made")
+def test_the_databricks_root_grants_to_groups_it_does_not_make() -> None:
+    """A group made through a workspace's own API is workspace-local.
+
+    Unity Catalog grants nothing to such a group, so the groups are made
+    in the workspace's settings, as account groups, and named here.
+    """
+    # log.debug("Reads the root")
+    blocks = _root("databricks")
+    # log.debug("Lists the kinds of resource it makes")
+    kinds = {kind for resource in blocks["resource"] for kind in resource}
+    # log.debug("Serializes the grants to search them")
+    grants = json.dumps([r for r in blocks["resource"] if "databricks_grants" in r])
+    # log.debug("Checks no group is made and every group is granted by name")
+    assert (
+        "databricks_group" in kinds,
+        all(f"var.groups.{g}" in grants for g in ("loaders", "builders", "readers")),
+    ) == (False, True)
+
+
+# log.debug("Defines the test that each group reaches only what its job needs")
+def test_loaders_write_raw_builders_write_models_and_readers_see_marts() -> None:
+    """Loaders alone write raw, builders models; readers see marts."""
+    # log.debug("Reads the root")
+    blocks = _root("databricks")
+    # log.debug("Reads the privileges each job is given")
+    jobs = _locals("databricks")
+    # log.debug("Serializes the raw schemas' grants")
+    raw = json.dumps(_resource(blocks, "databricks_grants", "raw"))
+    # log.debug("Serializes the model schemas' grants")
+    models = json.dumps(_resource(blocks, "databricks_grants", "models"))
+    # log.debug("Checks reading changes nothing, and loading and building can write")
+    assert (jobs["reading"], "MODIFY" in jobs["loading"], "MODIFY" in jobs["building"]) == (
+        ["USE_SCHEMA", "SELECT"],
+        True,
+        True,
+    )
+    # log.debug("Checks raw is written by loaders alone and read by builders, never readers")
+    assert (
+        '"${var.groups.loaders}", "privileges": "${local.loading}"' in raw,
+        "var.groups.builders] : []" in raw and "local.building" not in raw,
+        "var.groups.readers" in raw,
+    ) == (True, True, False)
+    # log.debug("Checks models are written by builders alone, and readers see marts only")
+    assert (
+        '"${var.groups.builders}", "privileges": "${local.building}"' in models,
+        "local.loading" in models,
+        "contains(keys(local.mart_schemas), each.key) ? [var.groups.readers]" in models,
+    ) == (True, False, True)

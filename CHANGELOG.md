@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.0, Nov 10, 2026
+
+- **Grants go to account groups, made in the workspace's settings.** The databricks root made its
+  three groups with the workspace's token, which makes workspace-local groups, and Unity Catalog
+  cannot grant to those; the root had not been applied, so nothing was lost. It now names
+  `data-loaders`, `data-builders` and `data-readers` in a `groups` variable, made once by hand
+  as account groups, which infra/README.md walks through.
+- **Each group reaches only what its job needs.** Loaders make and merge into the raw tables, keep
+  their column masks' functions and stage files; builders read the raw datasets and write the models
+  and marts; readers read the marts alone. dlt's staging schemas (`raw_*_staging`) are made here
+  and are the loaders' alone, and the `landing` schema is no longer readable by builders. The
+  catalog's grants are one per group, so they are safe on a catalog others share.
+- **`infra/databricks.sh` applies the databricks root** from AWS CloudShell, its state in the
+  bootstrap's state bucket under `databricks/`, asking for the workspace's address and a token that
+  it never prints or stores. What it shares with the bootstrap, Terraform's install and finding
+  the state bucket, moved to `infra/terraform.sh`.
+- 7 tests.
+
 ## v0.2.0, Nov 9, 2026
 
 - **eeoc-charge-intake deploys here.** The CI role trusts its main branch, by name and id

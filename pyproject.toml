@@ -5,7 +5,7 @@
 ########################################################################
 # Author:            Kevin Street
 # Created on:        2026-11-09
-# Last modified on:  2026-11-09
+# Last modified on:  2026-11-10
 #
 # The checks' environment: the tests that read the Terraform without a
 # cloud account, and ruff, mypy and pytest set to the code standard.
@@ -13,7 +13,7 @@
 
 [project]
 name = "data-platform-aws-databricks"
-version = "0.2.0"
+version = "0.3.0"
 description = "Where projects run on AWS with Databricks: the lake bucket, the deploy role and the Unity Catalog setup, in Terraform."
 readme = "README.md"
 requires-python = ">=3.12"

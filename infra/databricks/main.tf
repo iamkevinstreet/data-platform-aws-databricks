@@ -1,19 +1,30 @@
 # Author:            Kevin Street
 # Created on:        2026-11-09
-# Last modified on:  2026-11-09
+# Last modified on:  2026-11-10
 #
 # Every Unity Catalog object the warehouse needs, so a deleted workspace
-# is rebuilt from this repository: the catalog, one schema per layer, a
-# landing volume for exported files, three groups and their grants.
-# Loaders write the raw schemas only; builders read raw and own the
-# models; readers see the published marts and nothing under them.
+# is rebuilt from this repository: the catalog, one schema per layer and
+# one for each load's staging, a landing volume for exported files, and
+# what each of three groups may do. Loaders write the raw schemas only;
+# builders read raw and own the models; readers see the published marts
+# and nothing under them. The groups are made in the workspace's
+# settings, not here: a group made through a workspace's own API is
+# workspace-local, and Unity Catalog grants nothing to one.
 
 locals {
   raw_schemas = {
     raw_ai_ops     = "AI operations: the apps' committed results, loaded by dlt at pinned commits."
-    raw_reviews    = "EEOC charge intake: the review exports, each checked against contract v1."
+    raw_reviews    = "EEOC charge intake: review exports under contract v1, names masked."
     raw_eeoc_stats = "EEOC charge intake: the EEOC's Table E1a, charge receipts by basis."
-    landing        = "Files dropped for loading, such as review exports."
+  }
+  # dlt merges each load through a schema of its own beside the dataset,
+  # named with _staging, and stages its files in a volume there.
+  load_schemas = {
+    for name in keys(local.raw_schemas) :
+    "${name}_staging" => "dlt's staging for ${name}: each load's rows before they merge."
+  }
+  landing_schemas = {
+    landing = "Files dropped for loading, such as review exports."
   }
   model_schemas = {
     staging      = "dbt staging views: one per raw table, named for its source."
@@ -25,8 +36,24 @@ locals {
     charges  = "The EEOC charges mart: reviewed charges, field reviews, bridges and dimensions."
     national = "The EEOC's national statistics, the charges' context."
   }
-  schemas = merge(local.raw_schemas, local.model_schemas, local.mart_schemas)
-  groups  = ["data-loaders", "data-builders", "data-readers"]
+  schemas = merge(
+    local.raw_schemas, local.load_schemas, local.landing_schemas,
+    local.model_schemas, local.mart_schemas,
+  )
+
+  # What loaders may do where they land data: make and merge into
+  # tables, keep the functions their column masks call, stage files.
+  loading = [
+    "USE_SCHEMA", "CREATE_TABLE", "CREATE_FUNCTION", "CREATE_VOLUME",
+    "MODIFY", "SELECT", "READ_VOLUME", "WRITE_VOLUME",
+  ]
+
+  # What builders may do in the schemas dbt writes: make, replace and
+  # read tables and views.
+  building = ["USE_SCHEMA", "CREATE_TABLE", "MODIFY", "SELECT"]
+
+  # What reading is: the schema and its tables, no more.
+  reading = ["USE_SCHEMA", "SELECT"]
 }
 
 resource "databricks_catalog" "warehouse" {
@@ -52,41 +79,36 @@ resource "databricks_volume" "exports" {
   comment      = "Review exports as JSON files, read by the loaders."
 }
 
-resource "databricks_group" "role" {
-  for_each     = toset(local.groups)
-  display_name = each.key
-}
-
-# Grants are authoritative: they replace every grant on the object. So the
-# catalog's are set only on a catalog this root created, never on one that
-# others share, such as the Free Edition's workspace catalog.
-resource "databricks_grants" "catalog" {
-  count   = var.create_catalog ? 1 : 0
-  catalog = var.catalog
-
-  dynamic "grant" {
-    for_each = databricks_group.role
-    content {
-      principal  = grant.value.display_name
-      privileges = ["USE_CATALOG"]
-    }
-  }
+# Each group may use the catalog. One grant per group leaves the
+# catalog's other grants as they are, so this is safe on a catalog
+# others share, such as the Free Edition's workspace.
+resource "databricks_grant" "catalog" {
+  for_each   = tomap(var.groups)
+  catalog    = var.catalog
+  principal  = each.value
+  privileges = ["USE_CATALOG"]
 
   depends_on = [databricks_catalog.warehouse]
 }
 
+# The schemas below are this root's own, so their grants are
+# authoritative: any grant not written here is removed.
 resource "databricks_grants" "raw" {
-  for_each = local.raw_schemas
+  for_each = merge(local.raw_schemas, local.load_schemas, local.landing_schemas)
   schema   = "${var.catalog}.${databricks_schema.layer[each.key].name}"
 
   grant {
-    principal  = databricks_group.role["data-loaders"].display_name
-    privileges = ["USE_SCHEMA", "CREATE_TABLE", "MODIFY", "SELECT", "READ_VOLUME"]
+    principal  = var.groups.loaders
+    privileges = local.loading
   }
 
-  grant {
-    principal  = databricks_group.role["data-builders"].display_name
-    privileges = ["USE_SCHEMA", "SELECT", "READ_VOLUME"]
+  # Builders read what was loaded; staging and landing are the loaders'.
+  dynamic "grant" {
+    for_each = contains(keys(local.raw_schemas), each.key) ? [var.groups.builders] : []
+    content {
+      principal  = grant.value
+      privileges = local.reading
+    }
   }
 }
 
@@ -95,15 +117,16 @@ resource "databricks_grants" "models" {
   schema   = "${var.catalog}.${databricks_schema.layer[each.key].name}"
 
   grant {
-    principal  = databricks_group.role["data-builders"].display_name
-    privileges = ["USE_SCHEMA", "CREATE_TABLE", "CREATE_FUNCTION", "MODIFY", "SELECT"]
+    principal  = var.groups.builders
+    privileges = local.building
   }
 
+  # Readers see the marts, never the views and seeds under them.
   dynamic "grant" {
-    for_each = contains(keys(local.mart_schemas), each.key) ? ["data-readers"] : []
+    for_each = contains(keys(local.mart_schemas), each.key) ? [var.groups.readers] : []
     content {
-      principal  = databricks_group.role[grant.value].display_name
-      privileges = ["USE_SCHEMA", "SELECT"]
+      principal  = grant.value
+      privileges = local.reading
     }
   }
 }

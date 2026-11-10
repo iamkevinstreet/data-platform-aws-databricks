@@ -6,7 +6,7 @@
 ########################################################################
 # Author:            Kevin Street
 # Created on:        2026-11-09
-# Last modified on:  2026-11-09
+# Last modified on:  2026-11-10
 #
 # Builds the AWS side once, from AWS CloudShell, signed in as the
 # account's owner: a private, versioned state bucket, then the aws root
@@ -29,7 +29,8 @@ set -euo pipefail
 REGION="${AWS_REGION:-us-east-1}"
 STATE="${BUCKET}-tfstate"
 ROOT="$(cd "$(dirname "$0")/aws" && pwd)"
-REPO="https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo"
+# shellcheck source=infra/terraform.sh
+source "$(dirname "$0")/terraform.sh"
 
 # A bucket name, short enough for the state bucket's -tfstate to fit.
 if [[ ! "${BUCKET}" =~ ^[a-z0-9][a-z0-9-]{1,53}[a-z0-9]$ ]]; then
@@ -45,37 +46,8 @@ for name in "${BUCKET}" "${STATE}"; do
   fi
 done
 
-# Terraform from its official zip, checked against HashiCorp's checksums.
-install_terraform_zip() {
-  local version arch dir
-  version="$(curl -fsS https://checkpoint-api.hashicorp.com/v1/check/terraform \
-    | python3 -c 'import json, sys; print(json.load(sys.stdin)["current_version"])')"
-  case "$(uname -m)" in
-    x86_64) arch=amd64 ;;
-    aarch64) arch=arm64 ;;
-    *) echo "No Terraform build for $(uname -m)" >&2; exit 1 ;;
-  esac
-  dir="$(mktemp -d)"
-  curl -fsSLo "${dir}/terraform_${version}_linux_${arch}.zip" \
-    "https://releases.hashicorp.com/terraform/${version}/terraform_${version}_linux_${arch}.zip"
-  curl -fsSLo "${dir}/SHA256SUMS" \
-    "https://releases.hashicorp.com/terraform/${version}/terraform_${version}_SHA256SUMS"
-  if ! (cd "${dir}" && grep "_linux_${arch}.zip" SHA256SUMS | sha256sum -c -); then
-    echo "The Terraform download does not match HashiCorp's checksum" >&2
-    exit 1
-  fi
-  unzip -q "${dir}/terraform_${version}_linux_${arch}.zip" -d "${dir}"
-  sudo install -m 0755 "${dir}/terraform" /usr/local/bin/terraform
-}
-
-# Terraform, from HashiCorp's package repository, else its zip.
-if ! command -v terraform >/dev/null 2>&1; then
-  if ! { sudo dnf install -y dnf-plugins-core \
-    && sudo dnf config-manager --add-repo "${REPO}" \
-    && sudo dnf install -y terraform; }; then
-    install_terraform_zip
-  fi
-fi
+# Terraform, installed when this CloudShell session lacks it.
+ensure_terraform
 
 # Providers run to hundreds of megabytes; keep them out of the 1 GB home.
 export TF_DATA_DIR="${TMPDIR:-/tmp}/data-platform-aws-databricks-terraform/aws"

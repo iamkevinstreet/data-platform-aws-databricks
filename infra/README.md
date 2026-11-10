@@ -3,7 +3,8 @@
 Two Terraform roots, each with its own state, so the cloud account and the workspace can be built
 and torn down apart. CI checks the format and validates both against their providers' schemas on
 every push. The aws root was first applied on Nov 9, 2026, from data-platform; the databricks root
-has not been applied yet.
+has not been applied yet. Each is applied from AWS CloudShell by a script, which shows Terraform's
+plan and waits for a yes.
 
 ## aws
 
@@ -48,27 +49,63 @@ clone with the same name picks up where the last one left off.
 ## databricks
 
 Every Unity Catalog object a deploying project's warehouse needs, so a deleted Free Edition
-workspace can be rebuilt from here: the catalog, one schema per layer, a managed `exports` volume
-for files to load, and three groups with their grants. Loaders write the raw schemas; builders
-read raw and own every model; readers see the published marts only. Grants are authoritative, so
-the catalog's are set only on a catalog this root created.
+workspace can be rebuilt from here: the catalog (`kds`), a schema for each raw dataset and one
+beside it for dlt's staging, a `landing` schema with a managed `exports` volume, the model and mart
+schemas, and what each of three groups may do in them.
+
+| Group | Raw and staging schemas | Staging, intermediate and reference | Marts |
+| --- | --- | --- | --- |
+| `data-loaders` | make tables and their masks' functions, merge, stage files | nothing | nothing |
+| `data-builders` | read the raw datasets | make and replace tables and views | make and replace |
+| `data-readers` | nothing | nothing | read |
+
+Each group may use the catalog. The schemas' grants are authoritative, since the schemas are this
+root's own; the catalog's are one per group, which leaves any other grant on it alone.
+
+**The groups are made in the workspace, not here.** A group the Databricks provider makes with a
+workspace's token is workspace-local, and Unity Catalog grants nothing to a workspace-local group;
+making an account group takes the account console, which the Free Edition does not have. A group a
+workspace admin adds in the workspace's settings is an account group. So, once, before the first
+apply: in the workspace, open Settings, then Identity and access, then Groups, and add
+`data-loaders`, `data-builders` and `data-readers`, plus `personal-data-readers`, the one group
+eeoc-charge-intake's column mask lets see a charging party's name. All four stay empty.
+
+Then, from AWS CloudShell, with a workspace token (Settings, then Developer, then Access tokens; a
+day's lifetime is enough):
 
 ```bash
-cd infra/databricks
-export DATABRICKS_HOST=... DATABRICKS_TOKEN=...   # a workspace token; workspace APIs only
-terraform init -backend-config=backend.hcl       # the state bucket, key databricks/terraform.tfstate
-terraform apply                                  # or -var create_catalog=false -var catalog=workspace
+cd data-platform-aws-databricks
+git pull
+bash infra/databricks.sh
 ```
 
-This root is optional for the first loads: dlt and dbt create their own schemas in the catalog a
-deploying repository's `DATABRICKS_CATALOG` variable names, such as the Free Edition's own
-`workspace`. That repository reads three secrets: `DATABRICKS_HOST` (the SQL warehouse's server
+[`databricks.sh`](databricks.sh) asks for the workspace's address and the token, which stay in its
+environment and are never printed or written to a file, installs Terraform if CloudShell lacks it,
+keeps the root's state in the bootstrap's state bucket under `databricks/`, and applies the root,
+showing the plan and waiting for a yes. Then set each deploying repository's `DATABRICKS_CATALOG`
+variable to `kds`; its next run loads and builds there.
+
+If the apply cannot make the catalog (in February 2026 some Free Edition users could make one only
+from SQL), make it in the SQL editor with `CREATE CATALOG kds` and run the script again with
+`-var create_catalog=false`.
+
+A deploying repository reads three secrets: `DATABRICKS_HOST` (the SQL warehouse's server
 hostname, without `https://`), `DATABRICKS_HTTP_PATH` (its HTTP path, also this root's output
 `sql_warehouse_http_path`) and `DATABRICKS_TOKEN`, a personal access token scoped to `sql`,
 `files` and `unity-catalog`.
 
-## Not yet known
+## Found out, and not yet known
 
-These depend on what the Databricks Free Edition allows, and are checked on the first apply:
-whether a workspace token may create a catalog and groups, whether Unity Catalog grants and managed
-volumes are open to it, and whether it can read this account's bucket through an external location.
+- **Groups:** the provider's `databricks_group`, with a workspace's token, makes a workspace-local
+  group, which Unity Catalog cannot grant to ([Databricks: workspace-local
+  groups](https://docs.databricks.com/aws/en/admin/users-groups/workspace-local-groups); the
+  provider's issues [#3412](https://github.com/databricks/terraform-provider-databricks/issues/3412)
+  and [#5174](https://github.com/databricks/terraform-provider-databricks/issues/5174)). Hence the
+  groups made by hand above.
+- **Who runs the jobs:** every load and build runs with one person's token, the owner of what it
+  makes, so the grants bind every other principal but not the jobs. A service principal for each
+  job would make them bite; forum reports say the Free Edition cannot give a service principal an
+  OAuth secret, which needs the account console. Not yet tried.
+- **Still to learn on the first apply:** whether the token may make a catalog, whether managed
+  volumes are open to it, and whether it can read this account's bucket through an external
+  location.

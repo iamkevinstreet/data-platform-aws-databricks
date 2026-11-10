@@ -14,8 +14,8 @@ Databricks or Snowflake.
 
 | Part | State |
 | --- | --- |
-| The aws root: the lake bucket and the CI role | Applied on Nov 9, 2026, from data-platform, where it was built; moved here unchanged but for the role's trust, which lists the deploying repositories. v0.2.0 adds eeoc-charge-intake to them, applied once the bootstrap runs again |
-| The databricks root: catalog, schemas, volume, groups, grants | Written and validated, not yet applied; projects build in the Free Edition's own `workspace` catalog meanwhile |
+| The aws root: the lake bucket and the CI role | Applied on Nov 9, 2026, from data-platform, where it was built; moved here unchanged but for the role's trust, which lists the deploying repositories. v0.2.0 added eeoc-charge-intake to them, applied on Nov 10 |
+| The databricks root: catalog, schemas, volume, grants | Written and validated, not yet applied; projects build in the Free Edition's own `workspace` catalog meanwhile. v0.3.0 grants to account groups made in the workspace's settings, since Unity Catalog grants nothing to the workspace-local groups Terraform would make, and adds a script that applies it from CloudShell |
 | Deploying here | [ai-operations](https://github.com/iamkevinstreet/ai-operations) and [eeoc-charge-intake](https://github.com/iamkevinstreet/eeoc-charge-intake): every day each loads and builds on Databricks, and copies its warehouse and docs to the lake under its own prefix |
 
 The Databricks Free Edition runs in Databricks' own hosting, not in this AWS account. A Databricks
@@ -29,8 +29,9 @@ that is the next step for this pairing.
 | Lake bucket | Private, encrypted, versioned, TLS only; replaced versions expire after 30 days | [infra/aws/main.tf](infra/aws/main.tf) |
 | CI role, `data-platform-ci` | Assumed through GitHub's OIDC token by the main branch of each listed repository, for an hour at most; lists, reads and adds objects, never deletes | [infra/aws/main.tf](infra/aws/main.tf) |
 | Deployers | The repositories the role trusts, each by owner/name and numeric id | [infra/aws/variables.tf](infra/aws/variables.tf) |
-| Unity Catalog setup | A catalog, one schema per layer, a landing volume, and groups that load, build and read | [infra/databricks/main.tf](infra/databricks/main.tf) |
+| Unity Catalog setup | A catalog, a schema per layer and per load's staging, a landing volume, and what each of three groups may do: load, build or read | [infra/databricks/main.tf](infra/databricks/main.tf) |
 | Bootstrap | Builds or changes the aws root from AWS CloudShell, with its state in a private bucket | [infra/bootstrap.sh](infra/bootstrap.sh) |
+| Databricks apply | Applies the databricks root from AWS CloudShell, its state beside the aws root's, with a workspace token typed in and never stored | [infra/databricks.sh](infra/databricks.sh) |
 
 ## How a project deploys here
 
@@ -61,7 +62,9 @@ cost nothing, and so does the Databricks Free Edition. Nothing here runs between
 ```text
 infra/aws/          the lake bucket, GitHub's OIDC provider and the CI role
 infra/databricks/   the Unity Catalog objects and their grants
-infra/bootstrap.sh  the first apply, and every later one, from AWS CloudShell
+infra/bootstrap.sh  the aws root's first apply, and every later one, from AWS CloudShell
+infra/databricks.sh the databricks root's apply, from AWS CloudShell
+infra/terraform.sh  what both scripts share: Terraform's install and the state bucket
 tests/              the Terraform read without a cloud account
 ```
 
@@ -70,7 +73,7 @@ tests/              the Terraform read without a cloud account
 ```bash
 make install   # the checks' environment, from uv.lock
 make check     # lint, format, strict types and the code standard
-make test      # 5 tests: the Terraform parsed and its rules checked
+make test      # 7 tests: the Terraform parsed and its rules checked
 ```
 
 CI also runs `terraform fmt` and `terraform validate` on both roots.
