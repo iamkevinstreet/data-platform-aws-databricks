@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **The pairings table,** as data-platform-aws-snowflake carries it: both projects' daily runs
+  measured on Databricks and on Snowflake in the same runs of Nov 10, with what each cost and who
+  its jobs run as.
+
 ## v0.3.1, Nov 10, 2026
 
 - **The catalog is made in the workspace's UI.** On the first apply, the Free Edition's API refused
