@@ -5,6 +5,10 @@
 - **The pairings table,** as data-platform-aws-snowflake carries it: both projects' daily runs
   measured on Databricks and on Snowflake in the same runs of Nov 10, with what each cost and who
   its jobs run as.
+- **Snowflake's credits by project,** in the pairings table, from the scheduled runs of Nov 11:
+  0.082 for the EEOC's daily run and 0.079 for AI operations'. They replace Nov 10's 0.19, which
+  was read before all of that day's cloud services had been metered.
+- **A link to the case study** on kevindstreet.com, under the README's first paragraph.
 
 ## v0.3.1, Nov 10, 2026
 
